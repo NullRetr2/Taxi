@@ -1,0 +1,73 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bootstrap Navbar Example</title>
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=c092b1a4-f0fa-4fc2-984e-e391de21db6c&lang=ru_RU"></script>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet" />
+  <link rel="shortcut icon" href="{% static 'img/ico.ico' %}" type="image/x-icon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+  <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+  <div class="container-fluid p-0">
+    <div class="row">
+      <div class="col-12">
+        <div id="map" class="map" style="width: 100%; height: 100vh"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="geoModal" class="modal">
+    <img src="{% static 'img/Location.png' %}" alt="Изображение" class="modal-image">
+    <h4>Включите геолокацию</h4>
+  </div>
+
+  <script src="{% static 'js/scripts/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'js/scripts/jquery-3.6.0.min.js' %}"></script>
+  <script src="{% static 'js/menu.js' %}"></script>
+  <script src="{% static 'js/auth.js' %}"></script>
+  <script type="module" src="{% static 'js/index.js' %}"></script>
+  <script src="{% static 'js/scripts/popper.min.js' %}"></script>
+  <script src="{% static 'js/scripts/bootstrap.min.js' %}"></script>
+
+  <script>
+      function bannerOrderTaxiActionButtonHidden () {
+        if(document.getElementById('bottomBanner-user')){
+          document.getElementById('bottomBanner-user').remove()
+        }
+        if(document.getElementById('bottomBanner')){
+          document.getElementById('bottomBanner').remove()
+        }
+      }
+
+      function deleteOrder(i) {
+        $.ajax({
+          type: "GET",
+          url: "/deleteOrder/",
+          data: {
+            id: i
+          },
+        });
+      }
+
+      window.addEventListener('beforeunload', function(event) {
+        $.ajax({
+          type: "GET",
+          url: "/online/",
+          data: {
+            inf: false
+          },
+        });
+    });
+  </script>
+
+</body>
+</html>
+
