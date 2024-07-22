@@ -3,7 +3,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from .models import OrderTaxi, Tarif, Discont
 from user.models import User, Transactions
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 
 def index(request):
@@ -54,10 +54,32 @@ def deleteOrder(request):
 
     data = get_object_or_404(User, id=request.session["auth"])
     data.is_job = False
-
     data.save()
 
     return JsonResponse({"message": "Success delete"})
+
+
+def checkTaxiOrder_Del(request):
+    user = get_object_or_404(User, id=request.session.get("auth"))
+
+    response_data = {"is_job": user.is_job, "is_order_progress": None}
+
+    if user.is_order_progress:
+        response_data["is_order_progress"] = {
+            "id": user.is_order_progress.id,
+        }
+
+    return JsonResponse(response_data)
+
+
+def set_Is_Job(request):
+    user = get_object_or_404(User, id=request.session.get("auth"))
+    print(request.GET.get("is"))
+    user.is_job = request.POST.get("is")
+
+    user.save()
+
+    return JsonResponse({"message": "success"})
 
 
 def isJobTaxi(request):
@@ -111,33 +133,42 @@ def takeTaxiId(request):
 
 
 def moneyPayTaxi(request):
-    user_taxi = get_object_or_404(User, id=request.session["auth"])
-    user = get_object_or_404(User, id=request.GET.get("id_user"))
+    try:
+        user_taxi = get_object_or_404(User, id=request.session["auth"])
+        user = get_object_or_404(User, id=request.GET.get("id_user"))
 
-    t = user_taxi.money_taxi
-    d = user.money_orders
+        price = int(request.GET.get("price", 0))
+        if price <= 0:
+            return JsonResponse({"message": "Invalid price"}, status=400)
 
-    user_taxi.money_taxi = int(t) + int(request.GET.get("price"))
-    user.money_orders = int(d) - int(request.GET.get("price"))
+        t = user_taxi.money_taxi
+        d = user.money_orders
 
-    transactions_taxi = Transactions.objects.create(
-        name="Выполнен заказ",
-        money=int(request.GET.get("price")),
-        types=False,
-    )
-    transactions_user = Transactions.objects.create(
-        name="Оплата такси",
-        money=int(request.GET.get("price")),
-        types=True,
-    )
+        with transaction.atomic():
+            user_taxi.money_taxi = int(t) + price
+            user.money_orders = int(d) - price
 
-    user_taxi.transactions.add(transactions_taxi.id)
-    user.transactions.add(transactions_user.id)
+            transactions_taxi = Transactions.objects.create(
+                name="Выполнен заказ",
+                money=price,
+                types=False,
+            )
+            transactions_user = Transactions.objects.create(
+                name="Оплата такси",
+                money=price,
+                types=True,
+            )
 
-    user_taxi.save()
-    user.save()
+            user_taxi.transactions.add(transactions_taxi)
+            user.transactions.add(transactions_user)
 
-    return JsonResponse({"message": "Success"})
+            user_taxi.save()
+            user.save()
+
+        return JsonResponse({"message": "Success"})
+
+    except Exception as e:
+        return JsonResponse({"message": f"Error: {str(e)}"}, status=500)
 
 
 def update_coordinates(request):
@@ -183,11 +214,9 @@ def get_taxi(request):
 
 def get_user_all_information(request):
     user = User.objects.get(id=request.session["auth"])
-    
+
     if user.is_order_progress:
-        is_order_progress_data = {
-            "id": user.is_order_progress.id
-        }
+        is_order_progress_data = {"id": user.is_order_progress.id}
     else:
         is_order_progress_data = None
 

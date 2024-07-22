@@ -23,6 +23,8 @@ function profil() {
                 document.getElementById('menu-profil').remove()
             }
 
+            const emailValue = response.user_data.email ? response.user_data.email : "example.@gmail.com";
+
             const menuProfil = document.createElement("div");
             menuProfil.className = "menu-profil";
             menuProfil.id = "menu-profil";
@@ -37,7 +39,7 @@ function profil() {
                         <span class="menu-profil-form-span-n">${response.user_data.username}</span>
                         <div class="menu-profil-form-input">
                             <input type="phone" name="phone" value="${response.user_data.phone}">
-                            <input type="email" name="email" value="${response.user_data.email}" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" title="Введите корректный адрес электронной почты">
+                            <input type="email" name="email" value="${emailValue}" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" title="Введите корректный адрес электронной почты">
                             <select id="sound-select">
                                 <option value="" disabled selected>Звук таксисту</option>
                                 <option value="media/taxi/order.mp3">Стандартный</option>
@@ -61,6 +63,7 @@ function profil() {
                     </div>
                 </div>
             `;
+            
             
             document.body.appendChild(menuProfil);
             

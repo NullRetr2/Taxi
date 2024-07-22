@@ -21,6 +21,7 @@ CSRF_TRUSTED_ORIGINS = ['https://42b9-193-239-25-30.ngrok-free.app']
 # Application definition
 
 INSTALLED_APPS = [
+    'jet',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

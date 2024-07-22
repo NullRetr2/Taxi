@@ -32,8 +32,11 @@ function init() {
     updateTaxiData(objectManager);
     checkTaxiUser(map);
 
+
     setInterval(() => updateTaxiData(objectManager), 500);
     setInterval(updateCoordinate, 2000);
+    setInterval(() => checkTaxiOrder_Del(map), 2000)
+
     let route;
     let ched = true;
     let idUserTaxi;
@@ -132,7 +135,7 @@ function init() {
           idUserTaxi = response.id;
           bottomBanner.innerHTML = `
             <button class="banner-Order-Taxi-action-button banner-Order-Taxi-action-button-cancel"  id="bannerOrderTaxiActionButtonHidden" onclick="bannerOrderTaxiActionButtonHidden()">Скрыть</button>
-            <span class="bottom-banner-information-span">Заказчик</span>
+            <span class="bottom-banner-information-span">Таксист</span>
             <img src="${response.avatar}" class="avatar" alt="Avatar">
             <div class="order-info">
               <p class="banner-text customer-name">${response.username}</p>
@@ -181,6 +184,9 @@ function init() {
               </div>
             </div>
           `;
+          if (document.getElementById('bannerOrderTaxi')) {
+            document.getElementById('bannerOrderTaxi').remove()
+          }
         },
 
         error: function (xhr, status, error) {
@@ -570,13 +576,6 @@ function init() {
 function checkTaxiUser(map) {
   getUserInformation(function(userData) {
     if (userData.taxi == true) {
-      // $.ajax({
-      //   type: "GET",
-      //   url: "/get_user_all_information/",
-      //   success: function (response) {
-      //       console.log(response.user_data.is_order_progress)
-      //   }
-      // });
       const buttonLayout = ymaps.templateLayoutFactory.createClass(`
         <button class="start-button">{{ data.content }}</button>
       `);
@@ -664,51 +663,122 @@ function createRoute(
 function checkTaxiOrders(map, button_end) {
   let startMarker, endMarker;
   let isOrderPending = false;
+  let bottomBanner;
 
   function updatePosition() {
-    if (isOrderPending) {
-      return;
-    }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude: userLatitude, longitude: userLongitude } =
-          position.coords;
+        const { latitude: userLatitude, longitude: userLongitude } = position.coords;
 
         $.ajax({
           type: "GET",
           url: "/checkTaxiOrders/",
           success: function (data) {
             if (data.taxi) {
-              isOrderPending = true;
+              if (!isOrderPending) {
+                isOrderPending = true;
 
-              $.ajax({
-                type: "GET",
-                url: "/get_user_all_information/",
-                success: function (response) {
-                  const audioElement = new Audio();
-                  audioElement.src = response.user_data.sound_taxi;
-                  audioElement.play().catch();
+                $.ajax({
+                  type: "GET",
+                  url: "/get_user_all_information/",
+                  success: function (response) {
+                    const audioElement = new Audio();
+                    audioElement.src = response.user_data.sound_taxi;
+                    audioElement.play().catch();
+                  }
+                });
+
+                const endLatitude = parseFloat(data.taxi.end_latitude);
+                const endLongitude = parseFloat(data.taxi.end_longitude);
+
+                if (isNaN(endLatitude) || isNaN(endLongitude)) return;
+
+                if (startMarker) map.geoObjects.remove(startMarker);
+                if (endMarker) map.geoObjects.remove(endMarker);
+
+                startMarker = new ymaps.Placemark([userLatitude, userLongitude], {
+                  balloonContent: "Ваше местоположение",
+                  preset: "islands#greenDotIconWithCaption",
+                });
+                endMarker = new ymaps.Placemark([endLatitude, endLongitude], {
+                  balloonContent: "Точка назначения",
+                  preset: "islands#redDotIconWithCaption",
+                });
+
+                map.geoObjects.add(startMarker);
+                map.geoObjects.add(endMarker);
+
+                if (bottomBanner) bottomBanner.remove();
+
+                $.ajax({ type: "GET", url: "/isJobTaxi/", data: "data" });
+
+                $.ajax({
+                  type: "GET",
+                  url: "/takeTaxiId/",
+                  data: { id: data.taxi.id },
+                });
+
+                if (document.getElementById("menu")) {
+                  document.getElementById("menu").remove();
                 }
-              });
-            
 
-              const endLatitude = parseFloat(data.taxi.end_latitude);
-              const endLongitude = parseFloat(data.taxi.end_longitude);
+                bottomBanner = document.createElement("div");
+                bottomBanner.id = "bottomBanner";
+                bottomBanner.className = "bottom-banner";
 
-              if (isNaN(endLatitude) || isNaN(endLongitude)) return;
+                const paymentHTML =
+                  data.taxi.payment === "Карта"
+                    ? `
+                  <div class="bottom-banner-information-payment">
+                    <span class="bottom-banner-information-payment-span">Карта</span>
+                    <img class="bottom-banner-information-payment-img" src="static/img/mir.png" alt="" width="53" height="15">
+                    <h4 class="bottom-banner-information-payment-h4">${data.taxi.price}₽</h4>
+                  </div>
+                `
+                    : `
+                  <div class="bottom-banner-information-payment">
+                    <span class="bottom-banner-information-payment-span">Наличные</span>
+                    <img class="bottom-banner-information-payment-img" src="static/img/money.png" alt="" width="39" height="39">
+                    <h4 class="bottom-banner-information-payment-h4">${data.taxi.price}₽</h4>
+                  </div>
+                `;
 
-              if (startMarker) map.geoObjects.remove(startMarker);
-              if (endMarker) map.geoObjects.remove(endMarker);
+                bottomBanner.innerHTML = `
+                  <button class="banner-Order-Taxi-action-button banner-Order-Taxi-action-button-cancel" id="bannerOrderTaxiActionButtonHidden" onclick="bannerOrderTaxiActionButtonHidden()">Скрыть</button>
+                  <span class="bottom-banner-information-span">Информация</span>
+                  <img src="${data.taxi.avatar}" class="avatar" alt="Avatar">
+                  <div class="order-info">
+                    <p class="banner-text customer-name">${data.taxi.user_username}</p>
+                    <div class="customer-rating">
+                      <div class="rating-stars">
+                        <svg class="star filled" width="36" height="36" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M11.0979 1.8541C11.6966 0.0114832 14.3034 0.0114818 14.9021 1.8541L16.5922 7.05573C16.86 7.87977 17.6279 8.43769 18.4943 8.43769H23.9636C25.9011 8.43769 26.7066 10.9169 25.1392 12.0557L20.7145 15.2705C20.0135 15.7798 19.7202 16.6825 19.9879 17.5066L21.678 22.7082C22.2767 24.5508 20.1678 26.0831 18.6003 24.9443L14.1756 21.7295C13.4746 21.2202 12.5254 21.2202 11.8244 21.7295L7.39966 24.9443C5.83224 26.0831 3.72327 24.5508 4.32198 22.7082L6.01209 17.5066C6.27984 16.6825 5.98652 15.7798 5.28555 15.2705L0.860783 12.0557C-0.706645 10.9169 0.0989046 8.43769 2.03635 8.43769H7.50566C8.37212 8.43769 9.14003 7.87977 9.40778 7.05573L11.0979 1.8541Z"/>
+                        </svg>
+                        <span>5 (30000 отзывов)</span>
+                      </div>
+                    </div>
+                    <span class="order-info-span">6000 поездок</span>
+                  </div>
+                  <span class="bottom-banner-information-span-payment">Оплата</span>
+                  ${paymentHTML}
+                  <div class="bottom-banner-information-button">
+                    <div class="bottom-banner-information-button-svg">
+                      <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="24.5" fill="white" stroke="#151513"/>
+                        <path d="M30.4922 27.9876C30.2966 27.8964 30.1029 27.8018 29.9112 27.7039C29.1206 27.3003 28.1249 27.5929 27.7576 28.401C27.252 29.5133 25.791 29.7783 24.927 28.9143L21.0736 25.0609C20.2096 24.1969 20.4746 22.7359 21.5869 22.2303C22.3528 21.8822 22.6226 20.9328 22.2226 20.1927C22.0537 19.88 21.8936 19.5617 21.7427 19.2381C21.4415 18.5923 21.1801 17.9321 20.9588 17.2612C20.5938 16.1551 19.338 15.5383 18.3002 16.0671L15.5651 17.4606C15.1149 17.69 14.8355 18.1613 14.8795 18.6647C15.2502 22.9013 17.1017 26.8718 20.1089 29.879C23.1161 32.8862 27.0866 34.7377 31.3232 35.1083C31.827 35.1524 32.2985 34.8728 32.5281 34.4223L33.9973 31.5388C34.5327 30.4879 33.8935 29.2172 32.7672 28.8671C31.9937 28.6266 31.2335 28.3333 30.4922 27.9876Z" fill="#151513" stroke="white" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="24.5" fill="white" stroke="#151513"/>
+                        <path d="M29.3696 16.0001H19.7898C17.1458 16.0001 14.9999 18.1364 14.9999 20.7709V26.4996V27.4576C14.9999 30.092 17.1458 32.2283 19.7898 32.2283H21.2267C21.4854 32.2283 21.8303 32.4007 21.9931 32.6115L23.4301 34.5179C24.0624 35.3609 25.097 35.3609 25.7292 34.5179L27.1662 32.6115C27.3482 32.372 27.6356 32.2283 27.9326 32.2283H29.3696C32.0136 32.2283 34.1595 30.092 34.1595 27.4576V20.7709C34.1595 18.1364 32.0136 16.0001 29.3696 16.0001ZM20.7478 25.5799C20.2113 25.5799 19.7898 25.1488 19.7898 24.6219C19.7898 24.095 20.2209 23.664 20.7478 23.664C21.2746 23.664 21.7057 24.095 21.7057 24.6219C21.7057 25.1488 21.2842 25.5799 20.7478 25.5799ZM24.5797 25.5799C24.0432 25.5799 23.6217 25.1488 23.6217 24.6219C23.6217 24.095 24.0528 23.664 24.5797 23.664C25.1066 23.664 25.5376 24.095 25.5376 24.6219C25.5376 25.1488 25.1161 25.5799 24.5797 25.5799ZM28.4116 25.5799C27.8751 25.5799 27.4536 25.1488 27.4536 24.6219C27.4536 24.095 27.8847 23.664 28.4116 23.664C28.9385 23.664 29.3696 24.095 29.3696 24.6219C29.3696 25.1488 28.9481 25.5799 28.4116 25.5799Z" fill="#151513"/>
+                      </svg>
+                    </div>
+                    <div class="bottom-banner-information-button-cancel">
+                      <button id="BottomBannerInformationButton">Прибыл</button>
+                    </div>
+                  </div>
+                `;
 
-              startMarker = new ymaps.Placemark([userLatitude, userLongitude], {
-                balloonContent: "Ваше местоположение",
-                preset: "islands#greenDotIconWithCaption",
-              });
-              endMarker = new ymaps.Placemark([endLatitude, endLongitude], {
-                balloonContent: "Точка назначения",
-                preset: "islands#redDotIconWithCaption",
-              });
+                document.body.appendChild(bottomBanner);
 
               function startMarkerFunc() {
                 if(startMarker) {
@@ -725,201 +795,100 @@ function checkTaxiOrders(map, button_end) {
                 }
               }
 
-              map.geoObjects.add(startMarker);
-              map.geoObjects.add(endMarker);
+                setInterval(startMarkerFunc, 1000);
 
-              const existingBanner = document.getElementById("bottomBanner");
-              if (existingBanner) {
-                existingBanner.remove();
-              }
+                function handleEndEvent() {
+                  const newEndLatitude = parseFloat(data.taxi.start_latitude);
+                  const newEndLongitude = parseFloat(data.taxi.start_longitude);
 
-              $.ajax({ type: "GET", url: "/isJobTaxi/", data: "data" });
+                  if (!isNaN(newEndLatitude) && !isNaN(newEndLongitude)) {
+                    endMarker.geometry.setCoordinates([newEndLatitude, newEndLongitude]);
+                  }
 
-              $.ajax({
-                type: "GET",
-                url: "/takeTaxiId/",
-                data: { id: data.taxi.id },
-              });
-
-              if (document.getElementById("menu")) {
-                document.getElementById("menu").remove();
-              }
-
-              const bottomBanner = document.createElement("div");
-              bottomBanner.id = "bottomBanner";
-              bottomBanner.className = "bottom-banner";
-
-              const paymentHTML =
-                data.taxi.payment === "Карта"
-                  ? `
-                <div class="bottom-banner-information-payment">
-                  <span class="bottom-banner-information-payment-span">Карта</span>
-                  <img class="bottom-banner-information-payment-img" src="static/img/mir.png" alt="" width="53" height="15">
-                  <h4 class="bottom-banner-information-payment-h4">${data.taxi.price}₽</h4>
-                </div>
-              `
-                  : `
-                <div class="bottom-banner-information-payment">
-                  <span class="bottom-banner-information-payment-span">Наличные</span>
-                  <img class="bottom-banner-information-payment-img" src="static/img/money.png" alt="" width="39" height="39">
-                  <h4 class="bottom-banner-information-payment-h4">${data.taxi.price}₽</h4>
-                </div>
-              `;
-
-              bottomBanner.innerHTML = `
-                <button class="banner-Order-Taxi-action-button banner-Order-Taxi-action-button-cancel" id="bannerOrderTaxiActionButtonHidden" onclick="bannerOrderTaxiActionButtonHidden()">Скрыть</button>
-                <span class="bottom-banner-information-span">Информация</span>
-                <img src="${data.taxi.avatar}" class="avatar" alt="Avatar">
-                <div class="order-info">
-                  <p class="banner-text customer-name">${data.taxi.user_username}</p>
-                  <div class="customer-rating">
-                    <div class="rating-stars">
-                      <svg class="star filled" width="36" height="36" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M11.0979 1.8541C11.6966 0.0114832 14.3034 0.0114818 14.9021 1.8541L16.5922 7.05573C16.86 7.87977 17.6279 8.43769 18.4943 8.43769H23.9636C25.9011 8.43769 26.7066 10.9169 25.1392 12.0557L20.7145 15.2705C20.0135 15.7798 19.7202 16.6825 19.9879 17.5066L21.678 22.7082C22.2767 24.5508 20.1678 26.0831 18.6003 24.9443L14.1756 21.7295C13.4746 21.2202 12.5254 21.2202 11.8244 21.7295L7.39966 24.9443C5.83224 26.0831 3.72327 24.5508 4.32198 22.7082L6.01209 17.5066C6.27984 16.6825 5.98652 15.7798 5.28555 15.2705L0.860783 12.0557C-0.706645 10.9169 0.0989046 8.43769 2.03635 8.43769H7.50566C8.37212 8.43769 9.14003 7.87977 9.40778 7.05573L11.0979 1.8541Z"/>
-                      </svg>
-                      <span>5 (30000 отзывов)</span>
-                    </div>
-                  </div>
-                  <span class="order-info-span">6000 поездок</span>
-                </div>
-                <span class="bottom-banner-information-span-payment">Оплата</span>
-                ${paymentHTML}
-                <div class="bottom-banner-information-button">
-                  <div class="bottom-banner-information-button-svg">
-                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="25" cy="25" r="24.5" fill="white" stroke="#151513"/>
-                      <path d="M30.4922 27.9876C30.2966 27.8964 30.1029 27.8018 29.9112 27.7039C29.1206 27.3003 28.1249 27.5929 27.7576 28.401C27.252 29.5133 25.791 29.7783 24.927 28.9143L21.0736 25.0609C20.2096 24.1969 20.4746 22.7359 21.5869 22.2303C22.3528 21.8822 22.6226 20.9328 22.2226 20.1927C22.0537 19.88 21.8936 19.5617 21.7427 19.2381C21.4415 18.5923 21.1801 17.9321 20.9588 17.2612C20.5938 16.1551 19.338 15.5383 18.3002 16.0671L15.5651 17.4606C15.1149 17.69 14.8355 18.1613 14.8795 18.6647C15.2502 22.9013 17.1017 26.8718 20.1089 29.879C23.1161 32.8862 27.0866 34.7377 31.3232 35.1083C31.827 35.1524 32.2985 34.8728 32.5281 34.4223L33.9973 31.5388C34.5327 30.4879 33.8935 29.2172 32.7672 28.8671C31.9937 28.6266 31.2335 28.3333 30.4922 27.9876Z" fill="#151513" stroke="white" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="25" cy="25" r="24.5" fill="white" stroke="#151513"/>
-                      <path d="M29.3696 16.0001H19.7898C17.1458 16.0001 14.9999 18.1364 14.9999 20.7709V26.4996V27.4576C14.9999 30.092 17.1458 32.2283 19.7898 32.2283H21.2267C21.4854 32.2283 21.8303 32.4007 21.9931 32.6115L23.4301 34.5179C24.0624 35.3609 25.097 35.3609 25.7292 34.5179L27.1662 32.6115C27.3482 32.372 27.6356 32.2283 27.9326 32.2283H29.3696C32.0136 32.2283 34.1595 30.092 34.1595 27.4576V20.7709C34.1595 18.1364 32.0136 16.0001 29.3696 16.0001ZM20.7478 25.5799C20.2113 25.5799 19.7898 25.1488 19.7898 24.6219C19.7898 24.095 20.2209 23.664 20.7478 23.664C21.2746 23.664 21.7057 24.095 21.7057 24.6219C21.7057 25.1488 21.2842 25.5799 20.7478 25.5799ZM24.5797 25.5799C24.0432 25.5799 23.6217 25.1488 23.6217 24.6219C23.6217 24.095 24.0528 23.664 24.5797 23.664C25.1066 23.664 25.5376 24.095 25.5376 24.6219C25.5376 25.1488 25.1161 25.5799 24.5797 25.5799ZM28.4116 25.5799C27.8751 25.5799 27.4536 25.1488 27.4536 24.6219C27.4536 24.095 27.8847 23.664 28.4116 23.664C28.9385 23.664 29.3696 24.095 29.3696 24.6219C29.3696 25.1488 28.9481 25.5799 28.4116 25.5799Z" fill="#151513"/>
-                    </svg>
-                  </div>
-                  <div class="bottom-banner-information-button-cancel">
-                    <button id="BottomBannerInformationButton">Прибыл</button>
-                  </div>
-                </div>
-              `;
-
-              document.body.appendChild(bottomBanner);
-
-              setInterval(startMarkerFunc, 1000)
-
-              function handleEndEvent() {
-                const newEndLatitude = parseFloat(data.taxi.start_latitude);
-                const newEndLongitude = parseFloat(data.taxi.start_longitude);
-
-                if (!isNaN(newEndLatitude) && !isNaN(newEndLongitude)) {
-                  endMarker.geometry.setCoordinates([
+                  createRoute(
+                    userLatitude,
+                    userLongitude,
                     newEndLatitude,
                     newEndLongitude,
-                  ]);
+                    map
+                  );
+
+                  document.getElementById("BottomBannerInformationButton").remove();
+
+                  const finishButtonDiv = document.createElement("div");
+                  finishButtonDiv.className = "bottom-banner-information-button-cancel";
+
+                  const finishButton = document.createElement("button");
+                  finishButton.id = "BottomBannerInformationButtonFinish";
+                  finishButton.textContent = "Завершить";
+
+                  finishButtonDiv.appendChild(finishButton);
+
+                  bottomBanner.appendChild(finishButtonDiv);
+
+                  document
+                    .getElementById("BottomBannerInformationButtonFinish")
+                    .addEventListener("click", () => {
+                      finishButton.addEventListener("click", () => {
+                        if (startMarker) {
+                          map.geoObjects.remove(startMarker);
+                          startMarker = null;
+                        }
+                        if (endMarker) {
+                          map.geoObjects.remove(endMarker);
+                          endMarker = null;
+                        }
+
+                        if (currentRoute) {
+                          map.geoObjects.remove(currentRoute);
+                          currentRoute = null;
+                        }
+
+                        checkTaxiUser(map);
+                        bottomBanner.remove();
+                        menu();
+
+                        $.ajax({
+                          type: "GET",
+                          url: "/deleteOrder/",
+                          data: { id: data.taxi.id },
+                        });
+
+                        $.ajax({
+                          type: "GET",
+                          url: "/moneyPayTaxi/",
+                          data: {
+                            price: data.taxi.price,
+                            id_user: data.taxi.user_id,
+                          }
+                        });
+
+                        bannerStarClient(data.taxi.user_id, "клиента");
+                      });
+                    });
                 }
+
+                document
+                  .getElementById("BottomBannerInformationButton")
+                  .addEventListener("mouseup", handleEndEvent);
+                document
+                  .getElementById("BottomBannerInformationButton")
+                  .addEventListener("touchend", handleEndEvent);
+
+                map.controls.remove(button_end);
 
                 createRoute(
                   userLatitude,
                   userLongitude,
-                  newEndLatitude,
-                  newEndLongitude,
+                  endLatitude,
+                  endLongitude,
                   map
                 );
-
-                // Удаляем существующий элемент с id 'BottomBannerInformationButton'
-                document
-                  .getElementById("BottomBannerInformationButton")
-                  .remove();
-
-                // Создаем новый div элемент
-                const finishButtonDiv = document.createElement("div");
-                finishButtonDiv.className =
-                  "bottom-banner-information-button-cancel";
-
-                // Создаем новый button элемент внутри div
-                const finishButton = document.createElement("button");
-                finishButton.id = "BottomBannerInformationButtonFinish";
-                finishButton.textContent = "Завершить";
-
-                // Добавляем кнопку в div
-                finishButtonDiv.appendChild(finishButton);
-
-                // Добавляем div к нижнему баннеру
-                bottomBanner.appendChild(finishButtonDiv);
-
-                document
-                  .getElementById("BottomBannerInformationButtonFinish")
-                  .addEventListener("click", () => {
-                    finishButton.addEventListener("click", () => {
-                      if (startMarker) {
-                        map.geoObjects.remove(startMarker);
-                        startMarker = null;
-                      }
-                      if (endMarker) {
-                        map.geoObjects.remove(endMarker);
-                        endMarker = null;
-                      }
-
-                      if (currentRoute) {
-                        map.geoObjects.remove(currentRoute);
-                        currentRoute = null;
-                      }
-
-                      checkTaxiUser(map);
-                      bottomBanner.remove();
-                      menu();
-
-                      $.ajax({
-                        type: "GET",
-                        url: "/deleteOrder/",
-                        data: { id: data.taxi.id },
-                      });
-
-                      // ========================== Логига списание денег с карты и отправки таксисту ===========================
-
-                      $.ajax({
-                        type: "GET",
-                        url: "/moneyPayTaxi/",
-                        data: {
-                          price: data.taxi.price,
-                          id_user: data.taxi.user_id,
-                        }
-                      });
-
-                      // ========================================================================================================
-
-                      bannerStarClient(data.taxi.user_id, "клиента");
-                    });
-                  });
               }
-
-              // document.addEventListener("mousemove", handleMoveEvent);
-              // document.addEventListener("touchmove", handleMoveEvent);
-
-              document
-                .getElementById("BottomBannerInformationButton")
-                .addEventListener("mouseup", handleEndEvent);
-              document
-                .getElementById("BottomBannerInformationButton")
-                .addEventListener("touchend", handleEndEvent);
-
-              map.controls.remove(button_end);
-
-              createRoute(
-                userLatitude,
-                userLongitude,
-                endLatitude,
-                endLongitude,
-                map
-              );
-            } else if (data.message === "No pending orders") {
-              isOrderPending = false;
             }
           },
           error: function (xhr, status, error) {
             console.error("Ошибка при проверке заказов такси:", error);
-            if(document.getElementById('bottomBanner')) document.getElementById('bottomBanner');
-
-            if (startMarker) map.geoObjects.remove(startMarker);
-            if (endMarker) map.geoObjects.remove(endMarker);
             isOrderPending = false;
           },
         });
@@ -934,6 +903,7 @@ function checkTaxiOrders(map, button_end) {
   updatePosition();
 }
 
+
 function getUserInformation(callback) {
   $.ajax({
     type: "GET",
@@ -946,12 +916,6 @@ function getUserInformation(callback) {
     }
   });
 }
-
-              // getUserInformation(function(userData) {
-              //   const audioElement = new Audio();
-              //   audioElement.src = userData.sound_taxi;
-              //   audioElement.play().catch();
-              // });
 
 function bannerAuth() {
   const bannerAuth = document.createElement("div");
@@ -1001,7 +965,6 @@ function checkAuth() {
   });
 }
 
-// Функция для получения CSRF токена из cookie (предполагается, что он там хранится)
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -1077,6 +1040,29 @@ function menu() {
   `;
 
   document.body.appendChild(menu);
+}
+
+function checkTaxiOrder_Del(map) {
+  $.ajax({
+    type: "GET",
+    url: "/checkTaxiOrder_Del/",
+    success: function (data) {
+      if (data.is_job == true && data.is_order_progress == null) {
+        if (document.getElementById('bottomBanner')) {
+          map.geoObjects.removeAll();
+          document.getElementById('bottomBanner').remove();
+          checkTaxiUser(map);
+          $.ajax({
+            type: "GET",
+            url: "/set_Is_Job/",
+            data: {
+              is: false
+            }
+          });
+        }
+      }
+    }
+  });
 }
 
 const geolocationOptions = {

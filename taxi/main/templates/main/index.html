@@ -38,14 +38,31 @@
   <script src="{% static 'js/scripts/bootstrap.min.js' %}"></script>
 
   <script>
-      function bannerOrderTaxiActionButtonHidden () {
-        if(document.getElementById('bottomBanner-user')){
-          document.getElementById('bottomBanner-user').remove()
+    let isHidden = false;
+
+    function bannerOrderTaxiActionButtonHidden() {
+        const bottomBannerUser = document.getElementById('bottomBanner-user');
+        const bottomBanner = document.getElementById('bottomBanner');
+    
+        if (bottomBannerUser) {
+            if (isHidden) {
+                bottomBannerUser.style.bottom = ''; 
+            } else {
+                bottomBannerUser.style.bottom = '-380px';
+            }
         }
-        if(document.getElementById('bottomBanner')){
-          document.getElementById('bottomBanner').remove()
+    
+        if (bottomBanner) {
+            if (isHidden) {
+                bottomBanner.style.bottom = ''; 
+            } else {
+                bottomBanner.style.bottom = '-380px';
+            }
         }
-      }
+    
+        isHidden = !isHidden;
+    }
+    
 
       function deleteOrder(i) {
         $.ajax({
@@ -54,6 +71,9 @@
           data: {
             id: i
           },
+          success: function (res) {
+            console.log(res)
+          } 
         });
       }
 

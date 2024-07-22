@@ -14,7 +14,7 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to="avatar", default="../media/avatar/default.png")
     rating = models.IntegerField(null=True, blank=True)
     
-    is_order_progress = models.OneToOneField(OrderTaxi, verbose_name="is_order_progress", on_delete=models.CASCADE, related_name='is_order_progress', null=True, blank=True)
+    is_order_progress = models.OneToOneField(OrderTaxi, verbose_name="is_order_progress", on_delete=models.SET_NULL, related_name='is_order_progress', null=True, blank=True)
     
     money_orders = models.IntegerField(null=True, blank=True)
     money_taxi = models.IntegerField(null=True, blank=True)
@@ -25,8 +25,6 @@ class User(AbstractUser):
     sound_order = models.CharField(max_length=50, default='../media/taxi/order.mp')
     
     online = models.BooleanField(default=False)
-    
-    
     
     groups = models.ManyToManyField(
         'auth.Group',

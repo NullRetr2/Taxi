@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
 from main.views import (
@@ -24,9 +24,12 @@ from main.views import (
     get_transactions,
     updateInformationUser,
     online,
+    checkTaxiOrder_Del,
+    set_Is_Job,
 )
 
 urlpatterns = [
+    path('jet/', include('jet.urls', 'jet')),
     path("admin/", admin.site.urls),
     path("", index, name="index"),
     path("coordinate/", update_coordinates, name="update_coordinates"),
@@ -53,6 +56,8 @@ urlpatterns = [
     path("get_transactions/", get_transactions, name="get_transactions"),
     path("updateInformationUser/", updateInformationUser , name="updateInformationUser"),
     path("online/", online , name="online"),
+    path("checkTaxiOrder_Del/", checkTaxiOrder_Del , name="checkTaxiOrder_Del"),
+    path("set_Is_Job/", set_Is_Job , name="set_Is_Job"),
     
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 if settings.DEBUG:
